@@ -1,10 +1,10 @@
 # pihole-status
 
-Show Pi-hole statistics on a 128x32 OLED such as the
-[Adafruit PiOLED][pioled]. Every ten seconds the screen shows five seconds of
-Pi-hole numbers (blocked, queries, clients), then five of host status
-(address, load, temperature, memory, disk). When a query is blocked it
-switches to a large counter that ticks up.
+A Pi-hole screen for the OLED carousel in [python-adafruitdisplay][display],
+for a 128x32 display such as the [Adafruit PiOLED][pioled]. The
+`pihole-status` command runs the carousel with three screens: hostname and
+address, host status (load, temperature, memory, disk, uptime), and Pi-hole's
+query and blocked counts.
 
 Works with Pi-hole v6 and falls back to the v5 API automatically.
 
@@ -28,8 +28,10 @@ echo 'PIHOLE_PASSWORD=<app password>' | sudo tee /etc/pihole-status.env
 sudo chmod 600 /etc/pihole-status.env
 ```
 
-On Pi-hole v5 use the API token instead. `--password-file` reads the password
-from a file of its own instead of the environment.
+`PIHOLE_URL` points at another Pi-hole (default `http://localhost`), and
+`PIHOLE_PASSWORD_FILE` reads the password from a file of its own. On Pi-hole
+v5 use the API token instead. A rejected password shows on the screen and is
+tried again every five minutes, because Pi-hole rate-limits failed logins.
 
 ## Run as a service
 
@@ -38,25 +40,20 @@ sudo cp contrib/pihole-status.service /etc/systemd/system/
 sudo systemctl enable --now pihole-status
 ```
 
-The service runs as an unprivileged user with access to I2C, and the screen
-blanks when it stops.
+The service runs as an unprivileged user with access to I2C, and serves `/on`,
+`/off` and `/` on port 5001 for switching between the screens and the screen
+saver. It takes all of `oled-display`'s options; see `pihole-status --help`.
 
-If Pi-hole rejects the password, the service stops instead of retrying,
-because Pi-hole rate-limits failed logins. Fix the password, then
-`sudo systemctl restart pihole-status`.
+## Other carousels
 
-## Options
+Installing the package also registers the screen as `pihole`, so any
+`oled-display` carousel can include it:
 
 ```sh
-pihole-status --url http://pi.hole          # another Pi-hole (default: localhost)
-pihole-status --poll 2                      # seconds between polls
-pihole-status --preview screen.png --once   # draw one screen to a file, no display
-pihole-status -v                            # log more detail
+oled-display --screen identity --screen pihole
 ```
 
 ## Development
-
-The display code lives in [python-adafruitdisplay][display].
 
 ```sh
 pip install -e '.[dev]'
@@ -67,5 +64,5 @@ pytest
 The tests run against a fake Pi-hole web server and a preview display, so
 neither a Pi-hole nor the hardware is needed.
 
-[pioled]: https://www.adafruit.com/product/3527
 [display]: https://github.com/drakkhen/python-adafruitdisplay
+[pioled]: https://www.adafruit.com/product/3527

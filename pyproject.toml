@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pihole-status"
-version = "0.2.0"
+version = "0.3.0"
 description = "Show Pi-hole statistics on an SSD1306 OLED such as the Adafruit PiOLED"
 readme = "README.md"
 license = "MIT"
@@ -34,6 +34,9 @@ dev = [
 
 [project.scripts]
 pihole-status = "pihole_status.cli:main"
+
+[project.entry-points."adafruitdisplay.screens"]
+pihole = "pihole_status.screen:PiholeScreen"
 
 [tool.hatch.metadata]
 allow-direct-references = true
