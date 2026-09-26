@@ -5,10 +5,12 @@ After=network-online.target pihole-FTL.service
 
 [Service]
 ExecStart=/opt/pihole-status/bin/pihole-status --control 0.0.0.0:5001
-# Holds PIHOLE_PASSWORD=<app password>. Keep it readable by root only.
+# For a remote Pi-hole: PIHOLE_URL and PIHOLE_PASSWORD. Root-only.
 EnvironmentFile=-/etc/pihole-status.env
 DynamicUser=yes
-SupplementaryGroups=i2c
+# The pihole group can read FTL's local CLI password.
+Environment=PIHOLE_PASSWORD_FILE=/etc/pihole/cli_pw
+SupplementaryGroups=i2c pihole
 Restart=on-failure
 RestartSec=10
 

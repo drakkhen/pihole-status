@@ -20,7 +20,12 @@ sudo /opt/pihole-status/bin/pip install \
 
 ## Password
 
-If the Pi-hole has a password, create an app password in the web interface
+On the Pi-hole itself, no password needs setting up: Pi-hole v6 writes a
+password for local tools to `/etc/pihole/cli_pw` whenever FTL starts. Point
+`PIHOLE_PASSWORD_FILE` at it and run the service in the `pihole` group; the
+file is read again before each login, so FTL restarts don't break it.
+
+For a Pi-hole on another machine, create an app password in the web interface
 under Settings > Web interface / API and store it where only root can read it:
 
 ```sh

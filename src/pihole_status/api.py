@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import requests
@@ -54,8 +55,11 @@ class PiholeClient:
 
     ``password`` is the web interface password or, better, an app
     password from Settings > Web interface / API. On v5 it's the API
-    token instead. Use the client as a context manager so a v6 login
-    session is closed afterwards; Pi-hole allows only a few at once.
+    token instead. ``password_file`` names a file to read the password
+    from before each login, such as ``/etc/pihole/cli_pw``, which FTL
+    rewrites whenever it starts. Use the client as a context manager so
+    a v6 login session is closed afterwards; Pi-hole allows only a few
+    at once.
     """
 
     def __init__(
@@ -63,11 +67,15 @@ class PiholeClient:
         url: str = DEFAULT_URL,
         password: str | None = None,
         *,
+        password_file: str | Path | None = None,
         timeout: float = DEFAULT_TIMEOUT,
         session: requests.Session | None = None,
     ) -> None:
+        if password is not None and password_file is not None:
+            raise ValueError("give a password or a password file, not both")
         self.url = url.rstrip("/")
         self.password = password
+        self.password_file = None if password_file is None else Path(password_file)
         self.timeout = timeout
         self.http = session or requests.Session()
         self.api_version: Literal[5, 6] | None = None
@@ -134,9 +142,10 @@ class PiholeClient:
 
     def _log_in(self) -> None:
         self._sid = None
-        response = self._request("POST", "/api/auth", json={"password": self.password or ""})
+        password = self._current_password()
+        response = self._request("POST", "/api/auth", json={"password": password or ""})
         if response.status_code == 401:
-            if self.password is None:
+            if password is None:
                 raise AuthenticationError("Pi-hole needs a password; none was given")
             raise AuthenticationError("Pi-hole rejected the password")
         session = _json(response).get("session") or {}
@@ -147,8 +156,9 @@ class PiholeClient:
 
     def _fetch_v5(self) -> Any:
         params = {"summaryRaw": ""}
-        if self.password:
-            params["auth"] = self.password
+        password = self._current_password()
+        if password:
+            params["auth"] = password
         return _json(self._request("GET", "/admin/api.php", params=params))
 
     def _summary_v5(self, data: Any) -> Summary:
@@ -164,6 +174,14 @@ class PiholeClient:
             )
         except (KeyError, TypeError, ValueError) as error:
             raise PiholeError(f"unexpected summary from Pi-hole v5: {data!r}") from error
+
+    def _current_password(self) -> str | None:
+        if self.password_file is None:
+            return self.password
+        try:
+            return self.password_file.read_text().strip() or None
+        except OSError as error:
+            raise AuthenticationError(f"can't read {self.password_file}: {error}") from error
 
     def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
         headers = {SESSION_HEADER: self._sid} if self._sid else {}

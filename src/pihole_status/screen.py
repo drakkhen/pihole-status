@@ -3,7 +3,8 @@ The ``pihole`` screen for adafruitdisplay's carousel.
 
 It reads its connection from the environment: ``PIHOLE_URL`` (default
 ``http://localhost``), and ``PIHOLE_PASSWORD`` or a file named by
-``PIHOLE_PASSWORD_FILE``.
+``PIHOLE_PASSWORD_FILE``, read again before each login. On a Pi-hole v6
+host, ``/etc/pihole/cli_pw`` works without an app password.
 """
 
 from __future__ import annotations
@@ -12,7 +13,6 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 from adafruitdisplay import Display, Settings, TextFrame
 
@@ -82,8 +82,9 @@ def client_from_environment(environ: dict[str, str] | None = None) -> PiholeClie
     Build a :class:`PiholeClient` from the ``PIHOLE_*`` variables.
     """
     env = os.environ if environ is None else environ
-    password = env.get("PIHOLE_PASSWORD") or None
-    password_file = env.get("PIHOLE_PASSWORD_FILE")
-    if password is None and password_file:
-        password = Path(password_file).read_text().strip() or None
-    return PiholeClient(env.get("PIHOLE_URL") or DEFAULT_URL, password)
+    url = env.get("PIHOLE_URL") or DEFAULT_URL
+    if env.get("PIHOLE_PASSWORD"):
+        return PiholeClient(url, env["PIHOLE_PASSWORD"])
+    if env.get("PIHOLE_PASSWORD_FILE"):
+        return PiholeClient(url, password_file=env["PIHOLE_PASSWORD_FILE"])
+    return PiholeClient(url)

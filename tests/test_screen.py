@@ -78,7 +78,8 @@ def test_client_from_environment(tmp_path: Path) -> None:
     )
     from_variable = client_from_environment({"PIHOLE_PASSWORD": "from env"})
 
-    assert (from_file.url, from_file.password) == ("http://pi.hole", "from file")
+    assert from_file.url == "http://pi.hole"
+    assert from_file.password_file == secret
     assert (from_variable.url, from_variable.password) == ("http://localhost", "from env")
 
 

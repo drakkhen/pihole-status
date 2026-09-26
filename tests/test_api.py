@@ -2,6 +2,8 @@
 Client tests against the fake Pi-hole.
 """
 
+from pathlib import Path
+
 import pytest
 
 from pihole_status import AuthenticationError, PiholeClient, PiholeError, Summary
@@ -150,3 +152,25 @@ def test_a_hiccup_before_detection_does_not_pick_v5(pihole: FakePihole) -> None:
         pihole.v6_summary_missing = False
         assert client.summary().blocked == 9013
         assert client.api_version == 6
+
+
+def test_password_file_is_read_again_after_ftl_restarts(
+    pihole: FakePihole, tmp_path: Path
+) -> None:
+    # FTL writes a new /etc/pihole/cli_pw every time it starts.
+    cli_pw = tmp_path / "cli_pw"
+    cli_pw.write_text("first\n")
+    pihole.password = "first"
+
+    with PiholeClient(pihole.url, password_file=cli_pw) as client:
+        assert client.summary().blocked == 9013
+        pihole.password = "second"
+        pihole.expire_sessions()
+        cli_pw.write_text("second\n")
+
+        assert client.summary().blocked == 9013
+
+
+def test_password_and_password_file_are_exclusive(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        PiholeClient("http://localhost", "secret", password_file=tmp_path / "cli_pw")
