@@ -11,6 +11,8 @@ DynamicUser=yes
 SupplementaryGroups=i2c
 Restart=on-failure
 RestartSec=30
+# Exit status 78 is a rejected password; restarting won't fix it.
+RestartPreventExitStatus=78
 
 [Install]
 WantedBy=multi-user.target

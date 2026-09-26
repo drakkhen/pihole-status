@@ -10,7 +10,7 @@ from adafruitdisplay import Display, PreviewDriver, SystemStats
 
 from pihole_status import AuthenticationError, PiholeClient, PiholeError, StatusApp, Summary
 from pihole_status.app import FAST_TICK_SECONDS, TICK_SECONDS
-from pihole_status.cli import main
+from pihole_status.cli import EXIT_AUTHENTICATION, main
 
 from .fake_pihole import FakePihole
 
@@ -184,5 +184,11 @@ def test_cli_reports_a_wrong_password(
 
     status = main(["--url", pihole.url, "--preview", str(tmp_path / "out.png"), "--once"])
 
-    assert status == 1
+    assert status == EXIT_AUTHENTICATION
     assert capsys.readouterr().err == "pihole-status: Pi-hole rejected the password\n"
+
+
+def test_the_service_does_not_restart_after_an_authentication_failure() -> None:
+    unit = (Path(__file__).parent.parent / "contrib" / "pihole-status.service").read_text()
+
+    assert f"RestartPreventExitStatus={EXIT_AUTHENTICATION}" in unit.splitlines()

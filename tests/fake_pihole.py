@@ -38,6 +38,11 @@ class FakePihole:
     version: int = 6
     password: str | None = None
     v5_token: str | None = None
+    # Status for unknown paths on v5. lighttpd hands them to Pi-hole's
+    # PHP splash page, which likely answers 200 with HTML.
+    v5_unknown_status: int = 200
+    # Answer v6 summary requests with 404, like a proxy mid-restart.
+    v6_summary_missing: bool = False
     summary: dict[str, Any] = field(default_factory=lambda: json.loads(json.dumps(V6_SUMMARY)))
     sessions: set[str] = field(default_factory=set)
     requests: list[tuple[str, str]] = field(default_factory=list)
@@ -60,6 +65,14 @@ def serve(pihole: FakePihole) -> tuple[ThreadingHTTPServer, threading.Thread]:
             self.end_headers()
             self.wfile.write(data)
 
+        def _send_html(self, status: int) -> None:
+            data = b"<html><body>Pi-hole: this site is blocked</body></html>"
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
         def _authorised(self) -> bool:
             return pihole.password is None or self.headers.get("X-FTL-SID") in pihole.sessions
 
@@ -73,7 +86,9 @@ def serve(pihole: FakePihole) -> tuple[ThreadingHTTPServer, threading.Thread]:
 
         def _route_v6(self, method: str, path: str) -> None:
             if (method, path) == ("GET", "/api/stats/summary"):
-                if not self._authorised():
+                if pihole.v6_summary_missing:
+                    self._send(404, {"error": {"key": "not_found"}})
+                elif not self._authorised():
                     self._send(401, {"error": {"key": "unauthorized"}})
                 else:
                     self._send(200, pihole.summary)
@@ -101,7 +116,7 @@ def serve(pihole: FakePihole) -> tuple[ThreadingHTTPServer, threading.Thread]:
 
         def _route_v5(self, method: str, path: str, query: dict[str, list[str]]) -> None:
             if (method, path) != ("GET", "/admin/api.php") or "summaryRaw" not in query:
-                self._send(404, "Not Found")
+                self._send_html(pihole.v5_unknown_status)
             elif pihole.v5_token and query.get("auth") != [pihole.v5_token]:
                 self._send(200, [])
             else:

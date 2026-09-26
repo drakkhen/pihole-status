@@ -110,3 +110,43 @@ def test_unreachable() -> None:
         pytest.raises(PiholeError, match="can't reach"),
     ):
         client.summary()
+
+
+@pytest.mark.parametrize("unknown_status", [200, 404])
+def test_v5_fallback_whatever_the_splash_page_answers(
+    pihole: FakePihole, unknown_status: int
+) -> None:
+    pihole.version = 5
+    pihole.v5_unknown_status = unknown_status
+
+    with PiholeClient(pihole.url) as client:
+        assert client.summary().blocked == 300
+
+    assert client.api_version == 5
+
+
+def test_a_v6_hiccup_does_not_switch_to_v5(pihole: FakePihole) -> None:
+    with PiholeClient(pihole.url) as client:
+        client.summary()
+        pihole.v6_summary_missing = True
+        with pytest.raises(PiholeError):
+            client.summary()
+        pihole.v6_summary_missing = False
+
+        assert client.summary().blocked == 9013
+        assert client.api_version == 6
+
+    assert ("GET", "/admin/api.php") not in pihole.requests
+
+
+def test_a_hiccup_before_detection_does_not_pick_v5(pihole: FakePihole) -> None:
+    pihole.v6_summary_missing = True
+
+    with PiholeClient(pihole.url) as client:
+        with pytest.raises(PiholeError):
+            client.summary()
+        assert client.api_version is None
+
+        pihole.v6_summary_missing = False
+        assert client.summary().blocked == 9013
+        assert client.api_version == 6

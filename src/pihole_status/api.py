@@ -82,17 +82,27 @@ class PiholeClient:
     def summary(self) -> Summary:
         """
         Fetch the current :class:`Summary`.
+
+        The first successful answer settles which API the Pi-hole
+        speaks. After that the client never switches, so a stray error
+        from a v6 Pi-hole can't send it to the v5 API.
         """
+        if self.api_version == 6:
+            return self._summary_v6(self._request("GET", "/api/stats/summary"))
         if self.api_version == 5:
-            return self._summary_v5()
-        try:
-            summary = self._summary_v6()
-        except _NotV6Error:
-            log.info("no /api on %s; using the Pi-hole v5 API", self.url)
-            self.api_version = 5
-            return self._summary_v5()
-        self.api_version = 6
-        return summary
+            return self._summary_v5(self._fetch_v5())
+
+        # v6 answers with JSON. v5 has no /api, and its web server
+        # answers unknown paths with a 404 or an HTML splash page.
+        response = self._request("GET", "/api/stats/summary")
+        if response.status_code != 404 and _is_json(response):
+            summary = self._summary_v6(response)
+            self.api_version = 6
+            return summary
+        data = self._fetch_v5()
+        log.info("no v6 API on %s; using the Pi-hole v5 API", self.url)
+        self.api_version = 5
+        return self._summary_v5(data)
 
     def close(self) -> None:
         """
@@ -106,10 +116,7 @@ class PiholeClient:
             self._sid = None
         self.http.close()
 
-    def _summary_v6(self) -> Summary:
-        response = self._request("GET", "/api/stats/summary")
-        if response.status_code == 404:
-            raise _NotV6Error
+    def _summary_v6(self, response: requests.Response) -> Summary:
         if response.status_code == 401:
             self._log_in()
             response = self._request("GET", "/api/stats/summary")
@@ -138,11 +145,13 @@ class PiholeClient:
         # A null sid means this client doesn't need to authenticate.
         self._sid = session.get("sid")
 
-    def _summary_v5(self) -> Summary:
+    def _fetch_v5(self) -> Any:
         params = {"summaryRaw": ""}
         if self.password:
             params["auth"] = self.password
-        data = _json(self._request("GET", "/admin/api.php", params=params))
+        return _json(self._request("GET", "/admin/api.php", params=params))
+
+    def _summary_v5(self, data: Any) -> Summary:
         # v5 answers an unauthorised request with an empty list.
         if not isinstance(data, dict) or not data:
             raise AuthenticationError("Pi-hole v5 needs an API token for the summary")
@@ -166,8 +175,12 @@ class PiholeClient:
             raise PiholeError(f"can't reach Pi-hole at {self.url}: {error}") from error
 
 
-class _NotV6Error(Exception):
-    pass
+def _is_json(response: requests.Response) -> bool:
+    try:
+        response.json()
+    except ValueError:
+        return False
+    return True
 
 
 def _json(response: requests.Response) -> Any:

@@ -41,6 +41,10 @@ sudo systemctl enable --now pihole-status
 The service runs as an unprivileged user with access to I2C, and the screen
 blanks when it stops.
 
+If Pi-hole rejects the password, the service stops instead of retrying,
+because Pi-hole rate-limits failed logins. Fix the password, then
+`sudo systemctl restart pihole-status`.
+
 ## Options
 
 ```sh

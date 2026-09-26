@@ -20,6 +20,9 @@ from .api import DEFAULT_URL, AuthenticationError, PiholeClient
 from .app import POLL_SECONDS, StatusApp
 
 PASSWORD_VARIABLE = "PIHOLE_PASSWORD"
+# EX_CONFIG from sysexits.h. The systemd unit won't restart on it, since
+# retrying a wrong password only runs into Pi-hole's login rate limit.
+EXIT_AUTHENTICATION = 78
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -65,7 +68,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             app.run()
     except AuthenticationError as error:
         print(f"pihole-status: {error}", file=sys.stderr)
-        return 1
+        return EXIT_AUTHENTICATION
     except KeyboardInterrupt:
         pass
     return 0
