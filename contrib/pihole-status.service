@@ -1,0 +1,16 @@
+[Unit]
+Description=Pi-hole statistics on the OLED display
+Wants=network-online.target
+After=network-online.target pihole-FTL.service
+
+[Service]
+ExecStart=/opt/pihole-status/bin/pihole-status
+# Holds PIHOLE_PASSWORD=<app password>. Keep it readable by root only.
+EnvironmentFile=-/etc/pihole-status.env
+DynamicUser=yes
+SupplementaryGroups=i2c
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
